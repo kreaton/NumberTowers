@@ -1,0 +1,303 @@
+﻿@page "/"
+@using System.Diagnostics
+@using NumberTowers.Game
+@implements IDisposable
+@inject IJSRuntime JS
+
+<PageTitle>Number Towers</PageTitle>
+
+<div class="game">
+    <header class="topbar">
+        <h1 class="title" tabindex="-1">
+            <span class="t-blue">N</span><span class="t-red">u</span><span class="t-green">m</span><span class="t-yellow">b</span><span class="t-blue">e</span><span class="t-red">r</span>
+            <span class="title-rest">Towers</span>
+        </h1>
+        <div class="controls">
+            <span class="chip timer" aria-label="Time">⏱ @FormatTime(_stopwatch.Elapsed)</span>
+            <button class="chip btn" @onclick="ShowHint" title="Show a hint" aria-label="Hint">💡</button>
+            <button class="chip btn restart @(_confirmRestart ? "confirm" : "")" @onclick="RestartClicked">
+                @(_confirmRestart ? "Sure? Tap again!" : "🔄 New game")
+            </button>
+        </div>
+    </header>
+
+    <main class="board">
+        <section class="towers-panel" aria-label="Towers">
+            <div class="towers">
+                @foreach (var color in TowerGame.Colors)
+                {
+                    var height = _game.HeightOf(color);
+                    <div class="tower @Css(color) @(_game.IsComplete(color) ? "complete" : "")">
+                        <div class="floors">
+                            @for (int floor = 1; floor <= TowerGame.Floors; floor++)
+                            {
+                                if (floor <= height)
+                                {
+                                    <div class="floor filled"><span>@floor</span></div>
+                                }
+                                else if (floor == height + 1)
+                                {
+                                    <div class="floor next"><span>@floor</span></div>
+                                }
+                                else
+                                {
+                                    <div class="floor empty"></div>
+                                }
+                            }
+                        </div>
+                        <div class="base">@(_game.IsComplete(color) ? "⭐" : $"{height}/{TowerGame.Floors}")</div>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <section class="grid-panel" aria-label="Bricks">
+            <div class="grid @(_shuffling ? "shuffling" : "")">
+                @for (int i = 0; i < _game.Grid.Count; i++)
+                {
+                    var index = i;
+                    var brick = _game.Grid[i];
+                    <button @key="brick.Id"
+                            class="brick @Css(brick.Color) @ShakeClass(brick) @(_hint && _game.CanPlace(brick) ? "hint" : "")"
+                            style="@(_staggered.Contains(brick.Id) ? $"animation-delay:{index * 35}ms" : "")"
+                            aria-label="@($"{brick.Color} {brick.Number}")"
+                            @onclick="() => BrickClicked(index)">
+                        <span class="face"><span>@brick.Number</span></span>
+                    </button>
+                }
+            </div>
+        </section>
+    </main>
+
+    @if (_toast is not null)
+    {
+        <div @key="_toast.Id" class="toast @_toast.Kind" role="status">@_toast.Text</div>
+    }
+
+    @if (_game.IsWon && _showWin)
+    {
+        <div class="win-overlay">
+            <div class="confetti" aria-hidden="true">
+                @foreach (var piece in _confetti)
+                {
+                    <i style="@piece"></i>
+                }
+            </div>
+            <div class="win-card">
+                <div class="trophy">🏆</div>
+                <h2>Hooray!</h2>
+                <p>You built all 4 towers!</p>
+                <p class="win-time">⏱ @FormatTime(_stopwatch.Elapsed)</p>
+                <div class="win-buttons">
+                    <button class="big-btn play" @onclick="NewGame">🔄 Play again</button>
+                    <button class="big-btn look" @onclick="() => _showWin = false">👀 Look at my towers</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private sealed record Toast(int Id, string Text, string Kind);
+
+    private TowerGame _game = new();
+    private readonly Stopwatch _stopwatch = new();
+    private readonly HashSet<int> _staggered = new();
+    private readonly CancellationTokenSource _disposed = new();
+    private CancellationTokenSource? _toastCts;
+    private CancellationTokenSource? _hintCts;
+    private CancellationTokenSource? _restartCts;
+    private Toast? _toast;
+    private int _toastId;
+    private int? _shakeId;
+    private bool _shakeFlip;
+    private bool _hint;
+    private bool _busy;
+    private bool _shuffling;
+    private bool _showWin;
+    private bool _confirmRestart;
+    private string[] _confetti = [];
+
+    protected override void OnInitialized()
+    {
+        StaggerGrid();
+        _ = TickAsync();
+    }
+
+    private async Task TickAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(500));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(_disposed.Token))
+            {
+                if (_stopwatch.IsRunning)
+                    StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task BrickClicked(int index)
+    {
+        if (_busy || _game.IsWon)
+            return;
+
+        if (!_stopwatch.IsRunning)
+            _stopwatch.Start();
+
+        var brick = _game.Grid[index];
+        if (!_game.TryPlace(index))
+        {
+            _shakeId = brick.Id;
+            _shakeFlip = !_shakeFlip;
+            ShowToast(_game.IsComplete(brick.Color)
+                ? $"The {Name(brick.Color)} tower is already finished! ⭐"
+                : $"Oops! 🙈 The {Name(brick.Color)} tower needs a {_game.HeightOf(brick.Color) + 1}",
+                "bad");
+            await Play("fail");
+            return;
+        }
+
+        _shakeId = null;
+        _hint = false;
+
+        if (_game.IsWon)
+        {
+            _stopwatch.Stop();
+            _confetti = MakeConfetti();
+            _showWin = true;
+            await Play("hooray");
+            return;
+        }
+
+        await Play("success", brick.Number);
+
+        if (!_game.HasPlayableBrick)
+        {
+            _busy = true;
+            StateHasChanged();
+            await Task.Delay(550);
+            ShowToast("No moves left — shuffle! 🌀", "info");
+            _shuffling = true;
+            await Play("shuffle");
+            _game.Shuffle();
+            StaggerGrid();
+            StateHasChanged();
+            await Task.Delay(700);
+            _shuffling = false;
+            _busy = false;
+        }
+    }
+
+    private async Task ShowHint()
+    {
+        _hintCts?.Cancel();
+        _hintCts = new CancellationTokenSource();
+        var token = _hintCts.Token;
+        _hint = true;
+        try
+        {
+            await Task.Delay(2500, token);
+            _hint = false;
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private async Task RestartClicked()
+    {
+        if (_confirmRestart || _stopwatch.Elapsed == TimeSpan.Zero || _game.IsWon)
+        {
+            NewGame();
+            return;
+        }
+
+        // Ask for a second tap so a stray touch doesn't wipe out the kid's towers.
+        _restartCts?.Cancel();
+        _restartCts = new CancellationTokenSource();
+        var token = _restartCts.Token;
+        _confirmRestart = true;
+        try
+        {
+            await Task.Delay(3000, token);
+            _confirmRestart = false;
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private void NewGame()
+    {
+        _restartCts?.Cancel();
+        _confirmRestart = false;
+        _game = new TowerGame();
+        _stopwatch.Reset();
+        _showWin = false;
+        _hint = false;
+        _shakeId = null;
+        _toast = null;
+        StaggerGrid();
+    }
+
+    private void StaggerGrid()
+    {
+        _staggered.Clear();
+        foreach (var brick in _game.Grid)
+            _staggered.Add(brick.Id);
+    }
+
+    private async void ShowToast(string text, string kind)
+    {
+        _toastCts?.Cancel();
+        _toastCts = new CancellationTokenSource();
+        var token = _toastCts.Token;
+        _toast = new Toast(++_toastId, text, kind);
+        StateHasChanged();
+        try
+        {
+            await Task.Delay(2200, token);
+            _toast = null;
+            StateHasChanged();
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private async Task Play(string sound, params object[] args)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync($"numberTowersSound.{sound}", args);
+        }
+        catch (JSException)
+        {
+            // Sound is a nice-to-have; never let it break the game.
+        }
+    }
+
+    private string ShakeClass(Brick brick) =>
+        _shakeId == brick.Id ? (_shakeFlip ? "shake-a" : "shake-b") : "";
+
+    private static string[] MakeConfetti()
+    {
+        string[] colors = ["#3b82f6", "#ef4444", "#22c55e", "#facc15", "#a855f7", "#f97316"];
+        var rng = Random.Shared;
+        return Enumerable.Range(0, 70).Select(_ =>
+            $"left:{rng.Next(0, 100)}%;background:{colors[rng.Next(colors.Length)]};" +
+            $"animation-delay:{rng.Next(0, 2500)}ms;animation-duration:{rng.Next(2500, 4500)}ms;" +
+            $"--drift:{rng.Next(-80, 80)}px;--spin:{rng.Next(360, 1080)}deg").ToArray();
+    }
+
+    private static string Css(BrickColor color) => color.ToString().ToLowerInvariant();
+
+    private static string Name(BrickColor color) => color.ToString().ToLowerInvariant();
+
+    private static string FormatTime(TimeSpan t) =>
+        t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");
+
+    public void Dispose()
+    {
+        _disposed.Cancel();
+        _toastCts?.Cancel();
+        _hintCts?.Cancel();
+        _restartCts?.Cancel();
+    }
+}
