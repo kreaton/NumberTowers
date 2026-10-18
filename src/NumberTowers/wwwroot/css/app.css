@@ -149,13 +149,13 @@ h1:focus { outline: none; }
     animation: wiggle .5s ease-in-out infinite;
 }
 
-/* ===== Board: side by side in landscape, stacked in portrait ===== */
+/* ===== Board: grid left of the towers in landscape, below them in portrait ===== */
 
 .board {
     flex: 1 1 auto;
     min-height: 0;
     display: flex;
-    flex-direction: row;
+    flex-direction: row-reverse;
     gap: clamp(8px, 3vmin, 40px);
 }
 
