@@ -4,25 +4,24 @@
 @implements IDisposable
 @inject IJSRuntime JS
 
-<PageTitle>Number Towers</PageTitle>
+<PageTitle>Taltårne</PageTitle>
 
 <div class="game">
     <header class="topbar">
         <h1 class="title" tabindex="-1">
-            <span class="t-blue">N</span><span class="t-red">u</span><span class="t-green">m</span><span class="t-yellow">b</span><span class="t-blue">e</span><span class="t-red">r</span>
-            <span class="title-rest">Towers</span>
+            <span class="t-blue">T</span><span class="t-red">a</span><span class="t-yellow">l</span><span class="title-rest">tårne</span>
         </h1>
         <div class="controls">
-            <span class="chip timer" aria-label="Time">⏱ @FormatTime(_stopwatch.Elapsed)</span>
-            <button class="chip btn" @onclick="ShowHint" title="Show a hint" aria-label="Hint">💡</button>
+            <span class="chip timer" aria-label="Tid">⏱ @FormatTime(_stopwatch.Elapsed)</span>
+            <button class="chip btn" @onclick="ShowHint" title="Vis et tip" aria-label="Tip">💡</button>
             <button class="chip btn restart @(_confirmRestart ? "confirm" : "")" @onclick="RestartClicked">
-                @(_confirmRestart ? "Sure? Tap again!" : "🔄 New game")
+                @(_confirmRestart ? "Sikker? Tryk igen!" : "🔄 Nyt spil")
             </button>
         </div>
     </header>
 
     <main class="board">
-        <section class="towers-panel" aria-label="Towers">
+        <section class="towers-panel" aria-label="Tårne">
             <div class="towers">
                 @foreach (var color in TowerGame.Colors)
                 {
@@ -51,7 +50,7 @@
             </div>
         </section>
 
-        <section class="grid-panel" aria-label="Bricks">
+        <section class="grid-panel" aria-label="Klodser">
             <div class="grid @(_shuffling ? "shuffling" : "")">
                 @for (int i = 0; i < _game.Grid.Count; i++)
                 {
@@ -60,7 +59,7 @@
                     <button @key="brick.Id"
                             class="brick @Css(brick.Color) @ShakeClass(brick) @(_hint && _game.CanPlace(brick) ? "hint" : "")"
                             style="@(_staggered.Contains(brick.Id) ? $"animation-delay:{index * 35}ms" : "")"
-                            aria-label="@($"{brick.Color} {brick.Number}")"
+                            aria-label="@($"{Name(brick.Color)} {brick.Number}")"
                             @onclick="() => BrickClicked(index)">
                         <span class="face"><span>@brick.Number</span></span>
                     </button>
@@ -68,6 +67,8 @@
             </div>
         </section>
     </main>
+
+    <footer class="credits">Lavet med kærlighed 💛 (c) 2026 Per Hejndorf, Kreaton – @BuildInfo.Display</footer>
 
     @if (_toast is not null)
     {
@@ -85,12 +86,12 @@
             </div>
             <div class="win-card">
                 <div class="trophy">🏆</div>
-                <h2>Hooray!</h2>
-                <p>You built all 4 towers!</p>
+                <h2>Hurra!</h2>
+                <p>Du byggede alle 4 tårne!</p>
                 <p class="win-time">⏱ @FormatTime(_stopwatch.Elapsed)</p>
                 <div class="win-buttons">
-                    <button class="big-btn play" @onclick="NewGame">🔄 Play again</button>
-                    <button class="big-btn look" @onclick="() => _showWin = false">👀 Look at my towers</button>
+                    <button class="big-btn play" @onclick="NewGame">🔄 Spil igen</button>
+                    <button class="big-btn look" @onclick="() => _showWin = false">👀 Se mine tårne</button>
                 </div>
             </div>
         </div>
@@ -152,8 +153,8 @@
             _shakeId = brick.Id;
             _shakeFlip = !_shakeFlip;
             ShowToast(_game.IsComplete(brick.Color)
-                ? $"The {Name(brick.Color)} tower is already finished! ⭐"
-                : $"Oops! 🙈 The {Name(brick.Color)} tower needs a {_game.HeightOf(brick.Color) + 1}",
+                ? $"Det {TowerName(brick.Color)} tårn er allerede færdigt! ⭐"
+                : $"Ups! 🙈 Det {TowerName(brick.Color)} tårn skal have {_game.HeightOf(brick.Color) + 1}'eren",
                 "bad");
             await Play("fail");
             return;
@@ -178,7 +179,7 @@
             _busy = true;
             StateHasChanged();
             await Task.Delay(550);
-            ShowToast("No moves left — shuffle! 🌀", "info");
+            ShowToast("Ingen klodser passer – vi blander! 🌀", "info");
             _shuffling = true;
             await Play("shuffle");
             _game.Shuffle();
@@ -288,7 +289,22 @@
 
     private static string Css(BrickColor color) => color.ToString().ToLowerInvariant();
 
-    private static string Name(BrickColor color) => color.ToString().ToLowerInvariant();
+    private static string Name(BrickColor color) => color switch
+    {
+        BrickColor.Blue => "blå",
+        BrickColor.Red => "rød",
+        BrickColor.Green => "grøn",
+        _ => "gul",
+    };
+
+    // The definite form, as in "det røde tårn".
+    private static string TowerName(BrickColor color) => color switch
+    {
+        BrickColor.Blue => "blå",
+        BrickColor.Red => "røde",
+        BrickColor.Green => "grønne",
+        _ => "gule",
+    };
 
     private static string FormatTime(TimeSpan t) =>
         t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");

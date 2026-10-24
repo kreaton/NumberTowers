@@ -12,8 +12,8 @@ A small counting game for kids, built with Blazor WebAssembly (.NET 10). It runs
 
 Extras:
 
-- 💡 **Hint** lights up the bricks that fit for a couple of seconds.
-- 🔄 **New game** asks for a second tap during a game, so a stray touch doesn't wipe out the towers.
+- 💡 (hint) lights up the bricks that fit for a couple of seconds.
+- 🔄 **Nyt spil** (new game) asks for a second tap during a game, so a stray touch doesn't wipe out the towers.
 - All sounds are made with the Web Audio API in `wwwroot/js/sound.js`, so there are no audio files. Each floor plays a higher note.
 
 ## Requirements
@@ -30,7 +30,7 @@ Then open http://localhost:5054 (or https://localhost:7106 with the `https` laun
 
 ## Publish
 
-Run `src/NumberTowers/Publish.bat`, or:
+Publish with:
 
 ```bash
 dotnet publish src/NumberTowers -c Release -o src/NumberTowers/bin/Publish

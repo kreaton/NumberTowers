@@ -113,7 +113,7 @@ h1:focus { outline: none; }
 .title .t-red    { color: var(--red); transform: rotate(-6deg); }
 .title .t-green  { color: var(--green); transform: translateY(-.05em); }
 .title .t-yellow { color: #f5b700; transform: rotate(6deg); }
-.title-rest      { color: #ff7a1a; margin-left: .2em; }
+.title-rest      { color: #ff7a1a; }
 
 .controls {
     display: flex;
@@ -147,6 +147,14 @@ h1:focus { outline: none; }
     background: #ff7a1a;
     color: #fff;
     animation: wiggle .5s ease-in-out infinite;
+}
+
+.credits {
+    flex: 0 0 auto;
+    text-align: center;
+    font-size: clamp(.6rem, 1.6dvh, .8rem);
+    line-height: 1.2;
+    opacity: .6;
 }
 
 /* ===== Board: grid left of the towers in landscape, below them in portrait ===== */
