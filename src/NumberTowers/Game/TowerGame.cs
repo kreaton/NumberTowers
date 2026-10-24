@@ -54,15 +54,16 @@ public sealed class TowerGame
 
         _heights[brick.Color]++;
         if (!IsWon)
-            _grid[index] = RandomBrick();
+            _grid[index] = RandomBrick(index);
         return true;
     }
 
     /// <summary>Rebuilds the whole grid, guaranteeing at least one playable brick.</summary>
     public void Shuffle()
     {
+        Array.Clear(_grid);
         for (int i = 0; i < GridSize; i++)
-            _grid[i] = RandomBrick();
+            _grid[i] = RandomBrick(i);
 
         if (!IsWon && !HasPlayableBrick)
         {
@@ -72,12 +73,31 @@ public sealed class TowerGame
         }
     }
 
-    private Brick RandomBrick()
+    /// <summary>
+    /// Picks a random brick for slot <paramref name="index"/> whose color and number
+    /// don't already appear elsewhere in the grid.
+    /// </summary>
+    private Brick RandomBrick(int index)
     {
-        // Only use colors of towers that still need bricks, so finished towers don't clutter the grid.
-        var open = Colors.Where(c => !IsComplete(c)).ToArray();
-        if (open.Length == 0)
-            open = Colors.ToArray();
-        return new Brick(_nextId++, open[_rng.Next(open.Length)], _rng.Next(1, Floors + 1));
+        var taken = _grid
+            .Where((b, i) => i != index && b is not null)
+            .Select(b => (b.Color, b.Number))
+            .ToHashSet();
+
+        // Prefer colors of towers that still need bricks, so finished towers don't clutter the grid.
+        // With only one open tower there are fewer unique bricks than grid slots, so fall back to all colors.
+        var candidates = Candidates(Colors.Where(c => !IsComplete(c)), taken);
+        if (candidates.Length == 0)
+            candidates = Candidates(Colors, taken);
+
+        var (color, number) = candidates[_rng.Next(candidates.Length)];
+        return new Brick(_nextId++, color, number);
     }
+
+    private static (BrickColor Color, int Number)[] Candidates(
+        IEnumerable<BrickColor> colors, HashSet<(BrickColor, int)> taken) =>
+        colors
+            .SelectMany(c => Enumerable.Range(1, Floors).Select(n => (c, n)))
+            .Where(p => !taken.Contains(p))
+            .ToArray();
 }
