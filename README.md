@@ -1,6 +1,14 @@
 # Number Towers
 
-A small counting game for kids, built with Blazor WebAssembly (.NET 10). It runs entirely in the browser and can be pinned to a phone or tablet home screen as an app.
+![Blazor WebAssembly](https://img.shields.io/badge/Blazor-WebAssembly-lightgrey)
+![.NET 10](https://img.shields.io/badge/.NET-10-lightgrey)
+![Installable web app](https://img.shields.io/badge/PWA-installable-lightgrey)
+
+![Number Towers: build four towers from 1 to 10](images/banner.png)
+
+**A small counting game for kids.**
+
+It runs entirely in the browser and can be pinned to a phone or tablet home screen as an app.
 
 ## How to play
 
