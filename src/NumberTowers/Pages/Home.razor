@@ -13,6 +13,12 @@
         </h1>
         <div class="controls">
             <span class="chip timer" aria-label="Tid">⏱ @FormatTime(_stopwatch.Elapsed)</span>
+            <span class="chip lives @(_game.MissesLeft == 0 ? "last" : "")" aria-label="@($"{_game.MissesLeft} forsøg tilbage")" title="Forkerte forsøg tilbage">
+                @for (int i = 0; i < TowerGame.MaxMisses; i++)
+                {
+                    <span class="heart @(i < _game.MissesLeft ? "" : "lost")">❤️</span>
+                }
+            </span>
             <button class="chip btn" @onclick="ShowHint" title="Vis et tip" aria-label="Tip">💡</button>
             <button class="chip btn restart @(_confirmRestart ? "confirm" : "")" @onclick="RestartClicked">
                 @(_confirmRestart ? "Sikker? Tryk igen!" : "🔄 Nyt spil")
@@ -23,7 +29,7 @@
 
     <main class="board">
         <section class="towers-panel" aria-label="Tårne">
-            <div class="towers">
+            <div class="towers @(_crumbling ? "crumble" : "")">
                 @foreach (var color in TowerGame.Colors)
                 {
                     var height = _game.HeightOf(color);
@@ -116,6 +122,7 @@
     private bool _hint;
     private bool _busy;
     private bool _shuffling;
+    private bool _crumbling;
     private bool _showWin;
     private bool _confirmRestart;
     private string[] _confetti = [];
@@ -153,6 +160,13 @@
         {
             _shakeId = brick.Id;
             _shakeFlip = !_shakeFlip;
+
+            if (_game.MissLimitExceeded)
+            {
+                await PenalizeGuessing();
+                return;
+            }
+
             ShowToast(_game.IsComplete(brick.Color)
                 ? $"Det {TowerName(brick.Color)} tårn er allerede færdigt! ⭐"
                 : $"Ups! 🙈 Det {TowerName(brick.Color)} tårn skal have {_game.HeightOf(brick.Color) + 1}'eren",
@@ -174,22 +188,44 @@
         }
 
         await Play("success", brick.Number);
+        await ShuffleIfStuck();
+    }
 
-        if (!_game.HasPlayableBrick)
-        {
-            _busy = true;
-            StateHasChanged();
-            await Task.Delay(550);
+    // Pressing bricks at random instead of thinking costs a floor on every tower.
+    private async Task PenalizeGuessing()
+    {
+        _busy = true;
+        _hint = false;
+        ShowToast($"Stop! ✋ Det var {TowerGame.MaxMisses + 1} forkerte i træk. Tænk dig om! Alle tårne mister en klods 😬",
+            "warn", 3800);
+        await Play("penalty");
+        _crumbling = true;
+        _game.LowerTowers();
+        StateHasChanged();
+        await Task.Delay(900);
+        _crumbling = false;
+        _busy = false;
+        await ShuffleIfStuck(keepToast: true);
+    }
+
+    private async Task ShuffleIfStuck(bool keepToast = false)
+    {
+        if (_game.HasPlayableBrick)
+            return;
+
+        _busy = true;
+        StateHasChanged();
+        await Task.Delay(550);
+        if (!keepToast)
             ShowToast("Ingen klodser passer – vi blander! 🌀", "info");
-            _shuffling = true;
-            await Play("shuffle");
-            _game.Shuffle();
-            StaggerGrid();
-            StateHasChanged();
-            await Task.Delay(700);
-            _shuffling = false;
-            _busy = false;
-        }
+        _shuffling = true;
+        await Play("shuffle");
+        _game.Shuffle();
+        StaggerGrid();
+        StateHasChanged();
+        await Task.Delay(700);
+        _shuffling = false;
+        _busy = false;
     }
 
     private async Task ShowHint()
@@ -247,7 +283,7 @@
             _staggered.Add(brick.Id);
     }
 
-    private async void ShowToast(string text, string kind)
+    private async void ShowToast(string text, string kind, int durationMs = 2200)
     {
         _toastCts?.Cancel();
         _toastCts = new CancellationTokenSource();
@@ -256,7 +292,7 @@
         StateHasChanged();
         try
         {
-            await Task.Delay(2200, token);
+            await Task.Delay(durationMs, token);
             _toast = null;
             StateHasChanged();
         }

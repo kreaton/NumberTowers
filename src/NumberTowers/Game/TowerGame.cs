@@ -13,6 +13,9 @@ public sealed class TowerGame
     public const int Floors = 10;
     public const int GridSize = 16;
 
+    /// <summary>Wrong picks allowed in a row; the next one knocks a floor off every tower.</summary>
+    public const int MaxMisses = 3;
+
     public static readonly IReadOnlyList<BrickColor> Colors = Enum.GetValues<BrickColor>();
 
     private readonly Random _rng;
@@ -38,6 +41,11 @@ public sealed class TowerGame
 
     public bool HasPlayableBrick => _grid.Any(CanPlace);
 
+    /// <summary>Wrong picks since the last brick that fit.</summary>
+    public int Misses { get; private set; }
+
+    public int MissesLeft => Math.Max(0, MaxMisses - Misses);
+
     public bool CanPlace(Brick brick) =>
         !IsComplete(brick.Color) && brick.Number == _heights[brick.Color] + 1;
 
@@ -50,12 +58,30 @@ public sealed class TowerGame
     {
         var brick = _grid[index];
         if (!CanPlace(brick))
+        {
+            Misses++;
             return false;
+        }
 
+        Misses = 0;
         _heights[brick.Color]++;
         if (!IsWon)
             _grid[index] = RandomBrick(index);
         return true;
+    }
+
+    /// <summary>True once the player has guessed wrong more than <see cref="MaxMisses"/> times in a row.</summary>
+    public bool MissLimitExceeded => Misses > MaxMisses;
+
+    /// <summary>
+    /// The penalty for guessing: removes the top floor of every tower and resets the miss count.
+    /// The caller should <see cref="Shuffle"/> when <see cref="HasPlayableBrick"/> is false afterwards.
+    /// </summary>
+    public void LowerTowers()
+    {
+        foreach (var color in Colors)
+            _heights[color] = Math.Max(0, _heights[color] - 1);
+        Misses = 0;
     }
 
     /// <summary>Rebuilds the whole grid, guaranteeing at least one playable brick.</summary>
