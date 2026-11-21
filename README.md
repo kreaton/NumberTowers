@@ -12,6 +12,8 @@
 
 **A small counting game for kids.**
 
+▶️ **Play it:** <https://kreaton.github.io/KidsGames/numbertowers/>
+
 It runs entirely in the browser and can be pinned to a phone or tablet home screen as an app.
 
 ## How to play
